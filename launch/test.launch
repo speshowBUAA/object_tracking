@@ -1,0 +1,5 @@
+<!-- -->
+<launch>
+    <rosparam command="load" file="$(find object_tracking)/config/object3d_detector.yaml"/>
+    <node pkg="object_tracking" type="object_tracking_test" name="object_tracking_01" output="screen"/>
+</launch>
