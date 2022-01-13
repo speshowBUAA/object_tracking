@@ -50,7 +50,7 @@ public:
   }
   ~SimpleTracking() {}
 
-  void createConstantVelocityModel(double vel_noise_x, double vel_noise_y, double vel_noise_z = 0.3)
+  void createConstantVelocityModel(double vel_noise_x, double vel_noise_y, double vel_noise_z)
   {
     cvm = new Models::CVModel(vel_noise_x, vel_noise_y);
     cvm3d = new Models::CVModel3D(vel_noise_x, vel_noise_y, vel_noise_z);

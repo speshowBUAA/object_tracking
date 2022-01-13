@@ -77,16 +77,16 @@ void ObjectTracker::parseParams(ros::NodeHandle n)
   {
     if (ukf == NULL)
     {
-      pf->createConstantVelocityModel(cv_noise["x"], cv_noise["y"]);
+      pf->createConstantVelocityModel(cv_noise["x"], cv_noise["y"], cv_noise["z"]);
     }
     else
     {
-      ukf->createConstantVelocityModel(cv_noise["x"], cv_noise["y"]);
+      ukf->createConstantVelocityModel(cv_noise["x"], cv_noise["y"], cv_noise["z"]);
     }
   }
   else
   {
-    ekf->createConstantVelocityModel(cv_noise["x"], cv_noise["y"]);
+    ekf->createConstantVelocityModel(cv_noise["x"], cv_noise["y"], cv_noise["z"]);
   }
   ROS_INFO_STREAM(
       "Created " << filter
