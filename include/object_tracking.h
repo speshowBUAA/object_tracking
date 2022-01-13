@@ -19,7 +19,7 @@ private:
     // initializer list
     ros::NodeHandle private_nh_;
     // end initializer list
-    std::vector<ObjectTracker*> ot_;
+    ObjectTracker* ot_;
     std::vector<std::string> trk_cls_;
     ros::NodeHandle nh_;
     ros::Subscriber det_objects_;

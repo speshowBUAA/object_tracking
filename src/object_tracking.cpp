@@ -11,10 +11,9 @@
 Tracking::Tracking(const ros::NodeHandle& n)
 {
   n.getParam("/tracking_classes", trk_cls_);
+  ot_= new ObjectTracker(n);
   for (size_t cls = 0 ; cls < trk_cls_.size(); cls++)
   {
-    ObjectTracker *ot = new ObjectTracker(n);
-    ot_.push_back(ot);
     std::map<long, autoware_msgs::DetectedObject> detect_track_info;
     detect_track_info_.push_back(detect_track_info);
   }
@@ -45,7 +44,7 @@ void Tracking::trackCallback(const autoware_msgs::DetectedObjectArray::ConstPtr 
     std::chrono::time_point<std::chrono::system_clock> t0 = std::chrono::system_clock::now();
     map<long, vector<geometry_msgs::Pose>> tracks;
     map<int, int> assignments_detect_track;
-    ot_[cls]->detect(detect_objs, detect_objects->header.stamp.toSec(), cls, tracks,
+    ot_->detect(detect_objs, detect_objects->header.stamp.toSec(), cls, tracks,
           assignments_detect_track); // assignment < observation, target >
     LOG(INFO) << "detect_objs.size(): " << detect_objs.size() << ", tracks.size(): " << tracks.size() << ", assignments_detect_track.size(): " << assignments_detect_track.size();
     std::chrono::time_point<std::chrono::system_clock> t1 = std::chrono::system_clock::now();

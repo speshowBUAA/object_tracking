@@ -134,6 +134,7 @@ void ObjectTracker::parseParams(ros::NodeHandle n)
                                 : throw(observ_exception()),
                 detectors[it->first]["noise_params"]["x"],
                 detectors[it->first]["noise_params"]["y"],
+                detectors[it->first]["noise_params"]["z"],
                 (unsigned int)create_seq_size, create_seq_time, (unsigned int)prune_seq_size);
           }
           else
@@ -155,7 +156,8 @@ void ObjectTracker::parseParams(ros::NodeHandle n)
                                 ? CARTESIAN3DYaw
                                 : throw(observ_exception()),
                 detectors[it->first]["noise_params"]["x"],
-                detectors[it->first]["noise_params"]["y"]);
+                detectors[it->first]["noise_params"]["y"],
+                detectors[it->first]["noise_params"]["z"]);
           }
         }
         else
@@ -185,6 +187,7 @@ void ObjectTracker::parseParams(ros::NodeHandle n)
                                 : throw(observ_exception()),
                 detectors[it->first]["noise_params"]["x"],
                 detectors[it->first]["noise_params"]["y"],
+                detectors[it->first]["noise_params"]["z"],
                 (unsigned int)create_seq_size, create_seq_time, (unsigned int)prune_seq_size);
           }
           else
@@ -206,7 +209,8 @@ void ObjectTracker::parseParams(ros::NodeHandle n)
                                 ? CARTESIAN3DYaw
                                 : throw(observ_exception()),
                 detectors[it->first]["noise_params"]["x"],
-                detectors[it->first]["noise_params"]["y"]);
+                detectors[it->first]["noise_params"]["y"],
+                detectors[it->first]["noise_params"]["z"]);
           }
         }
       }
@@ -236,7 +240,8 @@ void ObjectTracker::parseParams(ros::NodeHandle n)
                               ? CARTESIAN3DYaw
                               : throw(observ_exception()),
               detectors[it->first]["noise_params"]["x"],
-              detectors[it->first]["noise_params"]["y"], (unsigned int)create_seq_size,
+              detectors[it->first]["noise_params"]["y"],
+              detectors[it->first]["noise_params"]["z"], (unsigned int)create_seq_size,
               create_seq_time, (unsigned int)prune_seq_size);
         }
         else
@@ -258,7 +263,8 @@ void ObjectTracker::parseParams(ros::NodeHandle n)
                               ? CARTESIAN3DYaw
                               : throw(observ_exception()),
               detectors[it->first]["noise_params"]["x"],
-              detectors[it->first]["noise_params"]["y"]);
+              detectors[it->first]["noise_params"]["y"],
+              detectors[it->first]["noise_params"]["z"]);
         }
       }
     }

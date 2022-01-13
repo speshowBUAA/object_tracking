@@ -72,7 +72,7 @@ bool isLost(const FilterType* filter, double stdLimit, int *lost_filter_seq_coun
 {
   // ROS_INFO("var_x: %f, var_y: %f",filter->X(0,0), filter->X(2,2));
   // track lost if var(x)+var(y) > stdLimit^2
-  if (filter->X(0, 0) + filter->X(2, 2) > Models::sqr(stdLimit))
+  if (filter->X(0, 0) + filter->X(2, 2) + filter->X(4, 4)> Models::sqr(stdLimit))
   {
     if(*lost_filter_seq_count > seqSize) return true;
     *lost_filter_seq_count += 1;

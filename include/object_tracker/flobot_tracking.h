@@ -50,16 +50,16 @@ public:
   }
   ~SimpleTracking() {}
 
-  void createConstantVelocityModel(double vel_noise_x, double vel_noise_y)
+  void createConstantVelocityModel(double vel_noise_x, double vel_noise_y, double vel_noise_z = 0.3)
   {
     cvm = new Models::CVModel(vel_noise_x, vel_noise_y);
-    cvm3d = new Models::CVModel3D(vel_noise_x, vel_noise_y, (vel_noise_x + vel_noise_y)/2);
-    cvm3dyaw = new Models::CVModel3DYaw(vel_noise_x, vel_noise_y, (vel_noise_x + vel_noise_y)/2);
+    cvm3d = new Models::CVModel3D(vel_noise_x, vel_noise_y, vel_noise_z);
+    cvm3dyaw = new Models::CVModel3DYaw(vel_noise_x, vel_noise_y, vel_noise_z);
   }
 
   void addDetectorModel(std::string name, MTRK::association_t alg,
                         MTRK::observ_model_t om_flag, double pos_noise_x,
-                        double pos_noise_y, unsigned int createSeqSize = 5,
+                        double pos_noise_y, double pos_noise_z, unsigned int createSeqSize = 5,
                         double seqTime = 0.2, unsigned int pruneSeqSize = 5)
   {
     ROS_INFO("Adding detector model for: %s.", name.c_str());
@@ -69,9 +69,9 @@ public:
     if (om_flag == MTRK::CARTESIAN)
       det.ctm = new Models::CartesianModel(pos_noise_x, pos_noise_y);
     if (om_flag == MTRK::CARTESIAN3D)
-      det.ctm3d = new Models::CartesianModel3D(pos_noise_x, pos_noise_y, (pos_noise_x + pos_noise_y) / 2);
+      det.ctm3d = new Models::CartesianModel3D(pos_noise_x, pos_noise_y, pos_noise_z);
     if (om_flag == MTRK::CARTESIAN3DYaw)
-      det.ctm3dyaw = new Models::CartesianModel3DYaw(pos_noise_x, pos_noise_y, (pos_noise_x + pos_noise_y) / 2);
+      det.ctm3dyaw = new Models::CartesianModel3DYaw(pos_noise_x, pos_noise_y, pos_noise_z);
     if (om_flag == MTRK::POLAR)
       det.plm = new Models::PolarModel(pos_noise_x, pos_noise_y);
     det.createSeqSize = createSeqSize;
