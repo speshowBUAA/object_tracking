@@ -61,7 +61,8 @@ typedef enum
 {
   CARTESIAN,
   POLAR,
-  CARTESIAN3D
+  CARTESIAN3D,
+  CARTESIAN3DYaw
 } observ_model_t;
 
 // to be defined by user
@@ -111,7 +112,7 @@ bool initialize(FilterType*& filter, sequence_t& obsvSeq,
     filter->init(x, X);
   }
 
-  if (om_flag == CARTESIAN3D)
+  if (om_flag == CARTESIAN3D || om_flag == CARTESIAN3DYaw)
   {
     double dt = obsvSeq.back().time - obsvSeq.front().time;
     if (dt == 0)

@@ -64,8 +64,8 @@ void ObjectTracker::parseParams(ros::NodeHandle n)
   else
   {
     ROS_FATAL_STREAM("Filter type " << filter << " is not specified. Unable to "
-                                                 "create the tracker. Please "
-                                                 "use either EKF, UKF or PF.");
+                                                "create the tracker. Please "
+                                                "use either EKF, UKF or PF.");
     return;
   }
 
@@ -90,16 +90,16 @@ void ObjectTracker::parseParams(ros::NodeHandle n)
   }
   ROS_INFO_STREAM(
       "Created " << filter
-                 << " based tracker using constant velocity prediction model.");
+                << " based tracker using constant velocity prediction model.");
 
   n.getParam("/detectors", detectors);
   ROS_ASSERT(detectors.getType() == XmlRpc::XmlRpcValue::TypeStruct);
   ROS_INFO_STREAM("Get detectors: " << detectors);
   for (XmlRpc::XmlRpcValue::ValueStruct::const_iterator it = detectors.begin();
-       it != detectors.end(); ++it)
+      it != detectors.end(); ++it)
   {
     ROS_INFO_STREAM("Found detector: " << (std::string)(it->first) << " ==> "
-                                       << detectors[it->first]);
+                                      << detectors[it->first]);
 
     detector_names.push_back(it->first);
 
@@ -129,7 +129,9 @@ void ObjectTracker::parseParams(ros::NodeHandle n)
                           ? POLAR
                           : detectors[it->first]["observation_model"] == "CARTESIAN3D"
                               ? CARTESIAN3D
-                              : throw(observ_exception()),
+                              : detectors[it->first]["observation_model"] == "CARTESIAN3DYaw"
+                                ? CARTESIAN3DYaw
+                                : throw(observ_exception()),
                 detectors[it->first]["noise_params"]["x"],
                 detectors[it->first]["noise_params"]["y"],
                 (unsigned int)create_seq_size, create_seq_time, (unsigned int)prune_seq_size);
@@ -149,7 +151,9 @@ void ObjectTracker::parseParams(ros::NodeHandle n)
                           ? POLAR
                           : detectors[it->first]["observation_model"] == "CARTESIAN3D"
                               ? CARTESIAN3D
-                              : throw(observ_exception()),
+                              : detectors[it->first]["observation_model"] == "CARTESIAN3DYaw"
+                                ? CARTESIAN3DYaw
+                                : throw(observ_exception()),
                 detectors[it->first]["noise_params"]["x"],
                 detectors[it->first]["noise_params"]["y"]);
           }
@@ -176,7 +180,9 @@ void ObjectTracker::parseParams(ros::NodeHandle n)
                           ? POLAR
                           : detectors[it->first]["observation_model"] == "CARTESIAN3D"
                               ? CARTESIAN3D
-                              : throw(observ_exception()),
+                              : detectors[it->first]["observation_model"] == "CARTESIAN3DYaw"
+                                ? CARTESIAN3DYaw
+                                : throw(observ_exception()),
                 detectors[it->first]["noise_params"]["x"],
                 detectors[it->first]["noise_params"]["y"],
                 (unsigned int)create_seq_size, create_seq_time, (unsigned int)prune_seq_size);
@@ -196,7 +202,9 @@ void ObjectTracker::parseParams(ros::NodeHandle n)
                           ? POLAR
                           : detectors[it->first]["observation_model"] == "CARTESIAN3D"
                               ? CARTESIAN3D
-                              : throw(observ_exception()),
+                              : detectors[it->first]["observation_model"] == "CARTESIAN3DYaw"
+                                ? CARTESIAN3DYaw
+                                : throw(observ_exception()),
                 detectors[it->first]["noise_params"]["x"],
                 detectors[it->first]["noise_params"]["y"]);
           }
@@ -224,7 +232,9 @@ void ObjectTracker::parseParams(ros::NodeHandle n)
                         ? POLAR
                         : detectors[it->first]["observation_model"] == "CARTESIAN3D"
                             ? CARTESIAN3D
-                            : throw(observ_exception()),
+                            : detectors[it->first]["observation_model"] == "CARTESIAN3DYaw"
+                              ? CARTESIAN3DYaw
+                              : throw(observ_exception()),
               detectors[it->first]["noise_params"]["x"],
               detectors[it->first]["noise_params"]["y"], (unsigned int)create_seq_size,
               create_seq_time, (unsigned int)prune_seq_size);
@@ -244,7 +254,9 @@ void ObjectTracker::parseParams(ros::NodeHandle n)
                         ? POLAR
                         : detectors[it->first]["observation_model"] == "CARTESIAN3D"
                             ? CARTESIAN3D
-                            : throw(observ_exception()),
+                            : detectors[it->first]["observation_model"] == "CARTESIAN3DYaw"
+                              ? CARTESIAN3DYaw
+                              : throw(observ_exception()),
               detectors[it->first]["noise_params"]["x"],
               detectors[it->first]["noise_params"]["y"]);
         }
@@ -254,8 +266,8 @@ void ObjectTracker::parseParams(ros::NodeHandle n)
     {
       ROS_FATAL_STREAM(
           "" << e.what() << " " << detectors[it->first]["matching_algorithm"]
-             << " is not specified. Unable to add " << (std::string)(it->first)
-             << " to the tracker. Please use either NN or NNJPDA as "
+            << " is not specified. Unable to add " << (std::string)(it->first)
+            << " to the tracker. Please use either NN or NNJPDA as "
                 "association algorithms.");
       return;
     }
@@ -263,8 +275,8 @@ void ObjectTracker::parseParams(ros::NodeHandle n)
     {
       ROS_FATAL_STREAM(
           "" << e.what() << " " << detectors[it->first]["observation_model"]
-             << " is not specified. Unable to add " << (std::string)(it->first)
-             << " to the tracker. Please use either CARTESIAN or POLAR as "
+            << " is not specified. Unable to add " << (std::string)(it->first)
+            << " to the tracker. Please use either CARTESIAN or POLAR as "
                 "observation models.");
       return;
     }
@@ -288,13 +300,15 @@ void ObjectTracker::detect(const vector<autoware_msgs::DetectedObject>& ppl,
         pf->addObservation(detector_names[detector_idx], ppl, time_stamp,
                            assignments);
         tracks = detectors[detector_names[detector_idx]]["observation_model"] == "CARTESIAN3D" ? pf->getTracks3D()
-                 : pf->getTracks();
+                  : detectors[detector_names[detector_idx]]["observation_model"] == "CARTESIAN3DYaw" ? pf->getTracks3Dyaw()
+                  : pf->getTracks();
       }
       else
       {
         ukf->addObservation(detector_names[detector_idx], ppl, time_stamp,
                             assignments);
         tracks = detectors[detector_names[detector_idx]]["observation_model"] == "CARTESIAN3D" ? ukf->getTracks3D()
+                 : detectors[detector_names[detector_idx]]["observation_model"] == "CARTESIAN3DYaw" ? ukf->getTracks3Dyaw()
                  : ukf->getTracks();
       }
     }
@@ -303,7 +317,8 @@ void ObjectTracker::detect(const vector<autoware_msgs::DetectedObject>& ppl,
       ekf->addObservation(detector_names[detector_idx], ppl, time_stamp,
                           assignments);
       tracks = detectors[detector_names[detector_idx]]["observation_model"] == "CARTESIAN3D" ? ekf->getTracks3D()
-               : ekf->getTracks();
+                : detectors[detector_names[detector_idx]]["observation_model"] == "CARTESIAN3DYaw" ? ekf->getTracks3Dyaw()
+                : ekf->getTracks();
     }
   }
 }

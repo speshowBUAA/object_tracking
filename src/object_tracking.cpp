@@ -18,7 +18,6 @@ Tracking::Tracking(const ros::NodeHandle& n)
     std::map<long, autoware_msgs::DetectedObject> detect_track_info;
     detect_track_info_.push_back(detect_track_info);
   }
-  n.getParam("/detectors/object3d_detector/observation_model", observation_model_);
 }
 
 void Tracking::createROSPubSub()
@@ -46,7 +45,7 @@ void Tracking::trackCallback(const autoware_msgs::DetectedObjectArray::ConstPtr 
     std::chrono::time_point<std::chrono::system_clock> t0 = std::chrono::system_clock::now();
     map<long, vector<geometry_msgs::Pose>> tracks;
     map<int, int> assignments_detect_track;
-    ot_[cls]->detect(detect_objs, detect_objects->header.stamp.toSec(), 0, tracks,
+    ot_[cls]->detect(detect_objs, detect_objects->header.stamp.toSec(), cls, tracks,
           assignments_detect_track); // assignment < observation, target >
     LOG(INFO) << "detect_objs.size(): " << detect_objs.size() << ", tracks.size(): " << tracks.size() << ", assignments_detect_track.size(): " << assignments_detect_track.size();
     std::chrono::time_point<std::chrono::system_clock> t1 = std::chrono::system_clock::now();
@@ -83,7 +82,7 @@ void Tracking::trackCallback(const autoware_msgs::DetectedObjectArray::ConstPtr 
       obj.velocity.linear.z = it->second[1].position.z;
       obj.dimensions= track_info.dimensions;
       obj.pose.position.z = track_info.pose.position.z;
-      obj.pose.orientation = (observation_model_ == "CARTESIAN3D") ? it->second[0].orientation : track_info.pose.orientation;
+      obj.pose.orientation = it->second[0].orientation;
       obj.score = track_info.score;
       obj.label = track_info.label;
       pub_objects.objects.push_back(obj);
