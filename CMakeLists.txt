@@ -15,20 +15,36 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   roslib
+  tf2_ros
+  eigen_conversions
   bayes_tracking
   autoware_msgs
 )
+
+find_package(Eigen3 QUIET)
+
+if(NOT EIGEN3_FOUND)
+  find_package(cmake_modules REQUIRED)
+  find_package(Eigen REQUIRED)
+  set(EIGEN3_INCLUDE_DIRS ${EIGEN_INCLUDE_DIRS})
+  set(EIGEN3_LIBRARIES ${EIGEN_LIBRARIES})
+else()
+  set(EIGEN3_INCLUDE_DIRS ${EIGEN3_INCLUDE_DIR})
+endif()
 
 catkin_package(
   CATKIN_DEPENDS
     roscpp
     roslib
+    tf2_ros
+    eigen_conversions
     bayes_tracking
     autoware_msgs
 )
 
 include_directories(
   include
+  ${EIGEN3_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
 )
 
@@ -47,7 +63,7 @@ add_dependencies(object_tracking
 )
 
 target_link_libraries(object_tracking
-  ${catkin_LIBRARIES} glog
+  ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES} glog
 )
 
 add_executable(object_tracking_test 
@@ -55,7 +71,7 @@ add_executable(object_tracking_test
     src/object_tracker/object_tracker.cpp
 )
 
-target_link_libraries(object_tracking_test ${catkin_LIBRARIES} glog)
+target_link_libraries(object_tracking_test ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES} glog)
 
 install(
   TARGETS object_tracking_test

@@ -44,6 +44,8 @@
 
   <depend>roscpp</depend>
   <depend>sensor_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>eigen_conversions</depend>
   <depend>message_filters</depend>
   <depend>roslib</depend>
   <depend>bayes_tracking</depend>

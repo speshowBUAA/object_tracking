@@ -38,6 +38,8 @@
 
 #include "object_tracker/multitracker.h"
 
+using namespace MTRKYaw;
+
 template <typename FilterType> class SimpleTracking
 {
 public:
@@ -57,8 +59,8 @@ public:
     cvm3dyaw = new Models::CVModel3DYaw(vel_noise_x, vel_noise_y, vel_noise_z);
   }
 
-  void addDetectorModel(std::string name, MTRK::association_t alg,
-                        MTRK::observ_model_t om_flag, double pos_noise_x,
+  void addDetectorModel(std::string name, association_t alg,
+                        observ_model_t om_flag, double pos_noise_x,
                         double pos_noise_y, double pos_noise_z, unsigned int createSeqSize = 5,
                         double seqTime = 0.2, unsigned int pruneSeqSize = 5)
   {
@@ -66,13 +68,13 @@ public:
     detector_model det;
     det.om_flag = om_flag;
     det.alg = alg;
-    if (om_flag == MTRK::CARTESIAN)
+    if (om_flag == CARTESIAN)
       det.ctm = new Models::CartesianModel(pos_noise_x, pos_noise_y);
-    if (om_flag == MTRK::CARTESIAN3D)
+    if (om_flag == CARTESIAN3D)
       det.ctm3d = new Models::CartesianModel3D(pos_noise_x, pos_noise_y, pos_noise_z);
-    if (om_flag == MTRK::CARTESIAN3DYaw)
+    if (om_flag == CARTESIAN3DYaw)
       det.ctm3dyaw = new Models::CartesianModel3DYaw(pos_noise_x, pos_noise_y, pos_noise_z);
-    if (om_flag == MTRK::POLAR)
+    if (om_flag == POLAR)
       det.plm = new Models::PolarModel(pos_noise_x, pos_noise_y);
     det.createSeqSize = createSeqSize;
     det.seqTime = seqTime;
@@ -177,13 +179,13 @@ public:
     for (std::vector<autoware_msgs::DetectedObject>::iterator li = obsv.begin();
          li != obsv.end(); ++li)
     {
-      if (det.om_flag == MTRK::CARTESIAN)
+      if (det.om_flag == CARTESIAN)
       {
         (*observation)[0] = li->pose.position.x;
         (*observation)[1] = li->pose.position.y;
         mtrk.addObservation(*observation, obsv_time, li->pose.position.z);
       }
-      if (det.om_flag == MTRK::CARTESIAN3D)
+      if (det.om_flag == CARTESIAN3D)
       {
         tf::Quaternion q(li->pose.orientation.x,
                   li->pose.orientation.y, 
@@ -196,7 +198,7 @@ public:
         (*observation3d)[2] = yaw;
         mtrk3d.addObservation(*observation3d, obsv_time, li->pose.position.z);
       }
-      if (det.om_flag == MTRK::CARTESIAN3DYaw)
+      if (det.om_flag == CARTESIAN3DYaw)
       {
         tf::Quaternion q(li->pose.orientation.x,
                   li->pose.orientation.y, 
@@ -209,7 +211,7 @@ public:
         (*observation3d)[2] = yaw;
         mtrk3dyaw.addObservation(*observation3d, obsv_time, li->pose.position.z);
       }
-      if (det.om_flag == MTRK::POLAR)
+      if (det.om_flag == POLAR)
       {
         (*observation)[0] = atan2(li->pose.position.y, li->pose.position.x);                 // bearing
         (*observation)[1] = sqrt(pow(li->pose.position.x, 2) + pow(li->pose.position.y, 2)); // range
@@ -217,28 +219,28 @@ public:
       }
     }
 
-    if (det.om_flag == MTRK::CARTESIAN)
+    if (det.om_flag == CARTESIAN)
     {
       mtrk.process(*(det.ctm), det.om_flag, det.alg, det.createSeqSize, det.seqTime, det.pruneSeqSize,
                    stdLimit);
       assignments = mtrk.getAssignments();
       mtrk.cleanup();
     }
-    if (det.om_flag == MTRK::CARTESIAN3D)
+    if (det.om_flag == CARTESIAN3D)
     {
       mtrk3d.process(*(det.ctm3d), det.om_flag, det.alg, det.createSeqSize, det.seqTime, det.pruneSeqSize,
                    stdLimit);
       assignments = mtrk3d.getAssignments();
       mtrk3d.cleanup();
     }
-    if (det.om_flag == MTRK::CARTESIAN3DYaw)
+    if (det.om_flag == CARTESIAN3DYaw)
     {
       mtrk3dyaw.process(*(det.ctm3dyaw), det.om_flag, det.alg, det.createSeqSize, det.seqTime, det.pruneSeqSize,
                    stdLimit);
       assignments = mtrk3dyaw.getAssignments();
       mtrk3dyaw.cleanup();
     }
-    if (det.om_flag == MTRK::POLAR)
+    if (det.om_flag == POLAR)
     {
       // det.plm->update(robot_pose.position.x, robot_pose.position.y,
       // robot_pose.orientation.w);
@@ -352,9 +354,9 @@ private:
   Models::CVModel* cvm;                   // CV model
   Models::CVModel3D* cvm3d;
   Models::CVModel3DYaw* cvm3dyaw;
-  MTRK::MultiTracker<FilterType, 4> mtrk; // state [x, v_x, y, v_y]
-  MTRK::MultiTracker<FilterType, 6> mtrk3d; // state [x, v_x, y, v_y, yaw, v_yaw]
-  MTRK::MultiTracker<FilterType, 6> mtrk3dyaw; // state [x, v_x, y, v_y, yaw, v_yaw]
+  MultiTracker<FilterType, 4> mtrk; // state [x, v_x, y, v_y]
+  MultiTracker<FilterType, 6> mtrk3d; // state [x, v_x, y, v_y, yaw, v_yaw]
+  MultiTracker<FilterType, 6> mtrk3dyaw; // state [x, v_x, y, v_y, yaw, v_yaw]
   double stdLimit; // upper limit for the variance of estimation position
 
   typedef struct
@@ -363,8 +365,8 @@ private:
     Models::CartesianModel3D* ctm3d;  // Cartesian3D observation model
     Models::CartesianModel3DYaw* ctm3dyaw;  // Cartesian3DYaw observation model
     Models::PolarModel* plm;      // Polar observation model
-    MTRK::observ_model_t om_flag; // Observation model flag
-    MTRK::association_t alg;      // Data association algorithm
+    observ_model_t om_flag; // Observation model flag
+    association_t alg;      // Data association algorithm
     unsigned int
         createSeqSize; // Minimum number of observations for new track creation
     double

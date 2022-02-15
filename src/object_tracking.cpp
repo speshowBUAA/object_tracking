@@ -8,7 +8,7 @@
 // headers in local files
 #include "object_tracking.h"
 
-Tracking::Tracking(const ros::NodeHandle& n)
+Tracking::Tracking(const ros::NodeHandle& n) : nh_(n), tfBuffer_(ros::Duration(60.)), tfListener_(tfBuffer_)
 {
   n.getParam("/tracking_classes", trk_cls_);
   ot_= new ObjectTracker(n);
@@ -27,8 +27,19 @@ void Tracking::createROSPubSub()
 
 void Tracking::trackCallback(const autoware_msgs::DetectedObjectArray::ConstPtr &detect_objects)
 {
+  cloud_track_frame_id_ = "odom";
+  cloud_base_frame_id_ = "base_footprint";
+  // lookup tf for sensor2odom: odom need to be gravity aligned
+  Eigen::Isometry3d base_to_odom = Eigen::Isometry3d::Identity();
+  if (!lookupTransform(cloud_track_frame_id_, cloud_base_frame_id_,
+                       detect_objects->header.stamp, ros::Duration(0.1), base_to_odom))
+    LOG(WARNING) << "Look TF failed, base_footprint_to_odom, RETURN!";
+  Eigen::Matrix3d rotation_matrix = base_to_odom.rotation();
+  Eigen::Quaterniond base_to_odom_q(rotation_matrix);
+
   autoware_msgs::DetectedObjectArray pub_objects;
   pub_objects.header = detect_objects->header;
+
   for (size_t cls = 0 ; cls < trk_cls_.size(); cls++)
   {
     vector<autoware_msgs::DetectedObject> detect_objs;
@@ -36,8 +47,43 @@ void Tracking::trackCallback(const autoware_msgs::DetectedObjectArray::ConstPtr 
     {
       if (IsObjectValid(object) && object.label == trk_cls_[cls])
       {
-        detect_objs.push_back(object);
-        // ROS_INFO("object_center %.2f %.2f %.2f rotation %.2f %.2f %.2f %.2f...", object.pose.position.x, object.pose.position.y, object.pose.position.z, object.pose.orientation.x, object.pose.orientation.y, object.pose.orientation.z, object.pose.orientation.w);
+        autoware_msgs::DetectedObject obj = object;
+        // geometry_msgs::PoseStamped obj_centroid;
+        // geometry_msgs::PoseStamped obj_centroid_odom;
+        // obj_centroid.header = detect_objects->header;
+        // obj_centroid.pose = obj.pose;
+        Eigen::Vector4d vec_obj_centroid;
+        vec_obj_centroid(0) = object.pose.position.x;
+        vec_obj_centroid(1) = object.pose.position.y;
+        vec_obj_centroid(2) = object.pose.position.z;
+        vec_obj_centroid(3) = 1;
+        
+        Eigen::Vector4d centroid_in_odom = base_to_odom * vec_obj_centroid;
+        Eigen::Quaterniond vec_obj_q(object.pose.orientation.w, object.pose.orientation.x,
+                            object.pose.orientation.y, object.pose.orientation.z);
+        Eigen::Quaterniond centroid_in_odom_q = base_to_odom_q * vec_obj_q;
+        // try{
+        //     obj_centroid_odom = tfBuffer_.transform(obj_centroid, cloud_track_frame_id_);
+        //    }
+        // catch (tf2::TransformException& ex) {
+        //       ROS_ERROR("%s",ex.what());
+        //       ros::Duration(0.1).sleep();
+        // }
+        // ROS_INFO("before:(%.2f,%.2f,%.2f), q:(%.2f,%.2f,%.2f,%.2f) frame_id:%s",obj_centroid.pose.position.x,obj_centroid.pose.position.y,obj_centroid.pose.position.z,object.pose.orientation.x, object.pose.orientation.y, object.pose.orientation.z, object.pose.orientation.w, obj_centroid.header.frame_id.c_str());
+        // ROS_INFO("before eigen:(%.2f,%.2f,%.2f), q:(%.2f,%.2f,%.2f,%.2f) frame_id:%s", vec_obj_centroid(0),vec_obj_centroid(1),vec_obj_centroid(2),vec_obj_q.vec()[0],vec_obj_q.vec()[1],vec_obj_q.vec()[2],vec_obj_q.vec()[3],detect_objects->header.frame_id.c_str());
+        // ROS_INFO("after:(%.2f,%.2f,%.2f), q:(%.2f,%.2f,%.2f,%.2f) frame_id:%s",obj_centroid_odom.pose.position.x,obj_centroid_odom.pose.position.y,obj_centroid_odom.pose.position.z,obj_centroid_odom.pose.orientation.x,obj_centroid_odom.pose.orientation.y,obj_centroid_odom.pose.orientation.z,obj_centroid_odom.pose.orientation.w,obj_centroid_odom.header.frame_id.c_str());
+        // ROS_INFO("after eigen:(%.2f,%.2f,%.2f), q:(%.2f,%.2f,%.2f,%.2f) frame_id:%s",centroid_in_odom(0),centroid_in_odom(1),centroid_in_odom(2),centroid_in_odom_q.vec()[0],centroid_in_odom_q.vec()[1],centroid_in_odom_q.vec()[2],centroid_in_odom_q.vec()[3],cloud_track_frame_id_.c_str());
+      
+        // obj.pose = obj_centroid_odom.pose;
+        obj.pose.position.x = centroid_in_odom(0);
+        obj.pose.position.y = centroid_in_odom(1);
+        obj.pose.position.z = centroid_in_odom(2);
+        obj.pose.orientation.x = centroid_in_odom_q.vec()[0];
+        obj.pose.orientation.y = centroid_in_odom_q.vec()[1];
+        obj.pose.orientation.z = centroid_in_odom_q.vec()[2];
+        obj.pose.orientation.w = centroid_in_odom_q.vec()[3];
+        obj.header.frame_id = cloud_track_frame_id_;
+        detect_objs.push_back(obj);
       }
     }
 
@@ -60,7 +106,6 @@ void Tracking::trackCallback(const autoware_msgs::DetectedObjectArray::ConstPtr 
       }
     }
 
-
     std::map<long, autoware_msgs::DetectedObject> detect_track_info;
     
     for (map<long, vector<geometry_msgs::Pose>>::const_iterator it =
@@ -70,6 +115,7 @@ void Tracking::trackCallback(const autoware_msgs::DetectedObjectArray::ConstPtr 
       const autoware_msgs::DetectedObject& track_info = detect_track_info_[cls][it->first];
       autoware_msgs::DetectedObject obj;
       obj.header = detect_objects->header;
+      obj.header.frame_id = cloud_track_frame_id_;
       obj.valid = true;
       obj.pose_reliable = true;
 
@@ -85,11 +131,20 @@ void Tracking::trackCallback(const autoware_msgs::DetectedObjectArray::ConstPtr 
       obj.score = track_info.score;
       obj.label = track_info.label;
       pub_objects.objects.push_back(obj);
-      // ROS_INFO("object id %d center %.2f %.2f %.2f rotation %.2f %.2f %.2f %.2f...", obj.id, obj.pose.position.x, obj.pose.position.y, obj.pose.position.z, obj.pose.orientation.x, obj.pose.orientation.y, obj.pose.orientation.z, obj.pose.orientation.w);
+      // tf::Quaternion q(obj.pose.orientation.x,
+      //                   obj.pose.orientation.y, 
+      //                   obj.pose.orientation.z,
+      //                   obj.pose.orientation.w);
+      // double roll, pitch, yaw;
+
+      // tf::Matrix3x3(q).getRPY(roll, pitch, yaw);
+      // ROS_INFO("object id %d center %.2f %.2f %.2f yaw %.2f ... frame_id:%s", obj.id, obj.pose.position.x, obj.pose.position.y, obj.pose.position.z, yaw, obj.header.frame_id.c_str());
+      // ROS_INFO("object id %d center %.2f %.2f %.2f rotation %.2f %.2f %.2f %.2f... frame_id:%s", obj.id, obj.pose.position.x, obj.pose.position.y, obj.pose.position.z, obj.pose.orientation.x, obj.pose.orientation.y, obj.pose.orientation.z, obj.pose.orientation.w, obj.header.frame_id.c_str());
       detect_track_info[it->first] = track_info;
     }
     detect_track_info_[cls] = detect_track_info;
   }
+  pub_objects.header.frame_id = cloud_track_frame_id_;
   pub_track_objects_.publish(pub_objects);
 }
 
@@ -114,3 +169,35 @@ bool Tracking::IsObjectValid(const autoware_msgs::DetectedObject &in_object)
   }
   return true;
 }//end IsObjectValid
+
+bool Tracking::lookupTransform(const std::string& target_frame,
+                                 const std::string& source_frame,
+                                 const ros::Time& time,
+                                 const ros::Duration timeout,
+                                 Eigen::Isometry3d& transform)
+{
+  while (1)
+  {
+    geometry_msgs::TransformStamped transform_stamped;
+    try
+    {
+      transform_stamped =
+          tfBuffer_.lookupTransform(target_frame, source_frame, time);
+    }
+    catch (tf2::TransformException& ex)
+    {
+      if (ros::Time::now() - time > timeout)
+      {
+        LOG(WARNING) << "Look TF failed: " << ex.what();
+        return false;
+      }
+
+      usleep(1000);
+      continue;
+    }
+    tf::transformMsgToEigen(transform_stamped.transform, transform);
+    break;
+  }
+
+  return true;
+}

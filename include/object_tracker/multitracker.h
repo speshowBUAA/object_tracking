@@ -22,7 +22,7 @@
 #include <float.h>
 
 
-namespace MTRK
+namespace MTRKYaw
 {
 
 struct observation_t
@@ -72,7 +72,8 @@ bool isLost(const FilterType* filter, double stdLimit, int *lost_filter_seq_coun
 {
   // ROS_INFO("var_x: %f, var_y: %f",filter->X(0,0), filter->X(2,2));
   // track lost if var(x)+var(y) > stdLimit^2
-  if (filter->X(0, 0) + filter->X(2, 2) + filter->X(4, 4)> Models::sqr(stdLimit))
+  // only consider position, ignore yaw
+  if (filter->X(0, 0) + filter->X(2, 2)> Models::sqr(stdLimit))
   {
     if(*lost_filter_seq_count > seqSize) return true;
     *lost_filter_seq_count += 1;
@@ -295,12 +296,10 @@ public:
       // update
       observe(om);
     }
-
     pruneTracks(stdLimit, prune_seqSize);
-
+    
     if (m_observations.size())
       createTracks(om, om_flag, create_seqSize, seqTime);
-
     // finished
     // cleanup();
   }
@@ -494,7 +493,20 @@ private:
         }
         else if (AM::mahalanobis(m_observations[*ui].vec, om.Z, si->back().vec,
                                  om.Z) <= AM::gate(om.z_size))
-        { // observation close to a previous one
+        { 
+          // in case of yaw diff pi
+          if (m_observations[*ui].vec.size() == 3)
+          {
+            if ((m_observations[*ui].vec[2] - si->back().vec[2]) > 1.57)    // exceed pi/2
+            {
+              m_observations[*ui].vec[2] -= 3.1415926;  // ± pi correction
+            }
+            else if ((m_observations[*ui].vec[2] - si->back().vec[2]) < -1.57)
+            {
+              m_observations[*ui].vec[2] += 3.1415926; // ± pi correction
+            }
+          }
+          // observation close to a previous one
           // add new track
           si->push_back(m_observations[*ui]);
           FilterType* filter;
@@ -547,11 +559,26 @@ private:
   {
     typename std::map<int, int>::iterator ai, aiEnd = m_assignments.end();
     for (ai = m_assignments.begin(); ai != aiEnd; ai++)
-    {
+    { 
+      // cout << "Vec first:" << Vec(m_observations[ai->first].vec) << endl;
+      // cout << "Vec second:" << m_filters[ai->second].filter->x[0] << " " << m_filters[ai->second].filter->x[2] << " " << m_filters[ai->second].filter->x[4] << endl;
+      
+      // in case of yaw diff pi
+      if (m_observations[ai->first].vec.size() == 3)
+      {
+        if ((m_observations[ai->first].vec[2] - m_filters[ai->second].filter->x[4]) > 1.57)    // exceed pi/2
+        {
+          m_observations[ai->first].vec[2] -= 3.1415926;  // ± pi correction
+        }
+        else if ((m_observations[ai->first].vec[2] - m_filters[ai->second].filter->x[4]) < -1.57)
+        {
+          m_observations[ai->first].vec[2] += 3.1415926; // ± pi correction
+        }
+      }
       m_filters[ai->second].filter->observe(om, m_observations[ai->first].vec);
     }
   }
 };
-} // namespace MTRK
+} // namespace MTRKYaw
 
 #endif

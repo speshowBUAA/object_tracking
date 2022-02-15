@@ -1,6 +1,6 @@
 #include "object_tracker/object_tracker.h"
 
-using namespace MTRK;
+using namespace MTRKYaw;
 using namespace std;
 
 ObjectTracker::ObjectTracker(const ros::NodeHandle& n) : nh(n)

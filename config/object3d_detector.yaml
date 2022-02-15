@@ -4,7 +4,7 @@ std_limit: 1.0
 cv_noise_params:                             # The noise for the constant velocity prediction model, velocity noise, the filter relies more on predicts when noise gets bigger 
     x: 1.4
     y: 1.4
-    z: 1.4
+    z: 4.0
     std_limit: 1.0                           # upper limit for the standard deviation of the estimated position 
 detectors:                                   # Add detectors under this namespace
     car3d_detector:                       # Name of detector (used internally to identify them). Has to be unique.
@@ -12,11 +12,11 @@ detectors:                                   # Add detectors under this namespac
         noise_params:                        # The noise for the cartesian observation model, , position noise, the filter relies more on predicts when noise gets bigger 
             x: 0.3
             y: 0.3
-            z: 0.3
+            z: 3.0
         matching_algorithm: "NN"             # The algorthim to match different detections. NN = Nearest Neighbour, NNJPDA = NN Joint Probability Data Association
-        create_seq_size: 3                   # Minimum number of observations for new track creation
+        create_seq_size: 6                   # Minimum number of observations for new track creation
         create_seq_time: 1.0                 # Minimum interval between observations for new track creation
-        prune_seq_size: 6                   # Minimum number of observations for prune track
+        prune_seq_size: 2                   # Minimum number of observations for prune track
     person3d_detector:                       # Name of detector (used internally to identify them). Has to be unique.
         observation_model: "CARTESIAN"     # Obeservation model: CARTESIAN3D or CARTESIAN3DYaw
         noise_params:                        # The noise for the cartesian observation model, , position noise, the filter relies more on predicts when noise gets bigger 
@@ -24,7 +24,7 @@ detectors:                                   # Add detectors under this namespac
             y: 0.3
             z: 0.3
         matching_algorithm: "NN"             # The algorthim to match different detections. NN = Nearest Neighbour, NNJPDA = NN Joint Probability Data Association
-        create_seq_size: 3                   # Minimum number of observations for new track creation
+        create_seq_size: 6                   # Minimum number of observations for new track creation
         create_seq_time: 1.0                 # Minimum interval between observations for new track creation
-        prune_seq_size: 6                  # Minimum number of observations for prune track
+        prune_seq_size: 2                  # Minimum number of observations for prune track
 tracking_classes: [car, person]
