@@ -69,6 +69,9 @@ void ObjectTracker::parseParams(ros::NodeHandle n)
     return;
   }
 
+  n.getParam("/predict_dt", predict_dt_);
+  ROS_INFO("predict_dt: %f ", predict_dt_);
+
   XmlRpc::XmlRpcValue cv_noise;
   n.getParam("/cv_noise_params", cv_noise);
   ROS_ASSERT(cv_noise.getType() == XmlRpc::XmlRpcValue::TypeStruct);
@@ -292,39 +295,49 @@ void ObjectTracker::parseParams(ros::NodeHandle n)
 void ObjectTracker::detect(const vector<autoware_msgs::DetectedObject>& ppl,
                            const double time_stamp, const size_t detector_idx,
                            map<long, vector<geometry_msgs::Pose>>& tracks,
+                           map<long, vector<geometry_msgs::Pose>>& predicts,
                            map<int, int>& assignments)
 {
   // std::cerr << "[people_tacker] got " << pta->poses.size() << " poses, from "
   // << detector << std::endl;
 
-  if (ppl.size())
+  // if (ppl.size())
+  // {
+  if (ekf == NULL)
   {
-    if (ekf == NULL)
+    if (ukf == NULL)
     {
-      if (ukf == NULL)
-      {
-        pf->addObservation(detector_names[detector_idx], ppl, time_stamp,
-                           assignments);
-        tracks = detectors[detector_names[detector_idx]]["observation_model"] == "CARTESIAN3D" ? pf->getTracks3D()
-                  : detectors[detector_names[detector_idx]]["observation_model"] == "CARTESIAN3DYaw" ? pf->getTracks3Dyaw()
-                  : pf->getTracks();
-      }
-      else
-      {
-        ukf->addObservation(detector_names[detector_idx], ppl, time_stamp,
-                            assignments);
-        tracks = detectors[detector_names[detector_idx]]["observation_model"] == "CARTESIAN3D" ? ukf->getTracks3D()
-                 : detectors[detector_names[detector_idx]]["observation_model"] == "CARTESIAN3DYaw" ? ukf->getTracks3Dyaw()
-                 : ukf->getTracks();
-      }
+      pf->addObservation(detector_names[detector_idx], ppl, time_stamp,
+                          assignments);
+      tracks = detectors[detector_names[detector_idx]]["observation_model"] == "CARTESIAN3D" ? pf->getTracks3D()
+                : detectors[detector_names[detector_idx]]["observation_model"] == "CARTESIAN3DYaw" ? pf->getTracks3Dyaw()
+                : pf->getTracks();
+      predicts = detectors[detector_names[detector_idx]]["observation_model"] == "CARTESIAN3D" ? pf->getPredicts3D(predict_dt_)
+                : detectors[detector_names[detector_idx]]["observation_model"] == "CARTESIAN3DYaw" ? pf->getPredicts3Dyaw(predict_dt_)
+                : pf->getPredicts(predict_dt_);
     }
     else
     {
-      ekf->addObservation(detector_names[detector_idx], ppl, time_stamp,
+      ukf->addObservation(detector_names[detector_idx], ppl, time_stamp,
                           assignments);
-      tracks = detectors[detector_names[detector_idx]]["observation_model"] == "CARTESIAN3D" ? ekf->getTracks3D()
-                : detectors[detector_names[detector_idx]]["observation_model"] == "CARTESIAN3DYaw" ? ekf->getTracks3Dyaw()
-                : ekf->getTracks();
+      tracks = detectors[detector_names[detector_idx]]["observation_model"] == "CARTESIAN3D" ? ukf->getTracks3D()
+                : detectors[detector_names[detector_idx]]["observation_model"] == "CARTESIAN3DYaw" ? ukf->getTracks3Dyaw()
+                : ukf->getTracks();
+      predicts = detectors[detector_names[detector_idx]]["observation_model"] == "CARTESIAN3D" ? ukf->getPredicts3D(predict_dt_)
+                : detectors[detector_names[detector_idx]]["observation_model"] == "CARTESIAN3DYaw" ? ukf->getPredicts3Dyaw(predict_dt_)
+                : ukf->getPredicts(predict_dt_);
     }
   }
+  else
+  {
+    ekf->addObservation(detector_names[detector_idx], ppl, time_stamp,
+                        assignments);
+    tracks = detectors[detector_names[detector_idx]]["observation_model"] == "CARTESIAN3D" ? ekf->getTracks3D()
+              : detectors[detector_names[detector_idx]]["observation_model"] == "CARTESIAN3DYaw" ? ekf->getTracks3Dyaw()
+              : ekf->getTracks();
+    predicts = detectors[detector_names[detector_idx]]["observation_model"] == "CARTESIAN3D" ? ekf->getPredicts3D(predict_dt_)
+              : detectors[detector_names[detector_idx]]["observation_model"] == "CARTESIAN3DYaw" ? ekf->getPredicts3Dyaw(predict_dt_)
+              : ekf->getPredicts(predict_dt_);
+  }
+  // }
 }

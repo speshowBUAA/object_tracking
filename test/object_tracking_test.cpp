@@ -19,6 +19,7 @@ int main(int argc, char** argv)
   
   ObjectTracker *ot_ = new ObjectTracker(nh);
   map<long, vector<geometry_msgs::Pose>> tracks;
+  map<long, vector<geometry_msgs::Pose>> predicts;
   map<int, int> assignments_cluster_track;
   ros::Time timestamp = ros::Time::now();
   vector<autoware_msgs::DetectedObject> clusters_center(10);
@@ -29,7 +30,7 @@ int main(int argc, char** argv)
     cluster_center.pose.position.y = 0.0f;
     cluster_center.pose.position.z = 0.0f;
   }
-  ot_->detect(clusters_center, timestamp.toSec(), 0, tracks,
+  ot_->detect(clusters_center, timestamp.toSec(), 0, tracks, predicts,
              assignments_cluster_track);
   return 0;
 }

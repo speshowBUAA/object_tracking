@@ -31,7 +31,8 @@ public:
 
   void detect(const std::vector<autoware_msgs::DetectedObject>& ppl,
               const double time_stamp, const size_t detector_idx,
-              std::map<long, std::vector<geometry_msgs::Pose>>& tracks, std::map<int, int>& assignments);
+              std::map<long, std::vector<geometry_msgs::Pose>>& tracks,
+              std::map<long, std::vector<geometry_msgs::Pose>>& predicts, std::map<int, int>& assignments);
 
 private:
   void parseParams(ros::NodeHandle);
@@ -39,7 +40,8 @@ private:
   ros::NodeHandle nh;
   std::vector<std::string> detector_names;
   XmlRpc::XmlRpcValue detectors;
-  
+  double predict_dt_;
+
   SimpleTracking<EKFilter>* ekf = NULL;
   SimpleTracking<UKFilter>* ukf = NULL;
   SimpleTracking<PFilter>* pf = NULL;

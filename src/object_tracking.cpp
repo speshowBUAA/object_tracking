@@ -11,18 +11,23 @@
 Tracking::Tracking(const ros::NodeHandle& n) : nh_(n), tfBuffer_(ros::Duration(60.)), tfListener_(tfBuffer_)
 {
   n.getParam("/tracking_classes", trk_cls_);
-  ot_= new ObjectTracker(n);
   for (size_t cls = 0 ; cls < trk_cls_.size(); cls++)
   {
+    ObjectTracker* ot = new ObjectTracker(n);
     std::map<long, autoware_msgs::DetectedObject> detect_track_info;
     detect_track_info_.push_back(detect_track_info);
+    ot_.push_back(ot);
   }
+
+  n.getParam("/velocity_limit", velocity_limit_);
+  ROS_INFO("velocity_limit: %f ", velocity_limit_);
 }
 
 void Tracking::createROSPubSub()
 {
   det_objects_ = nh_.subscribe<autoware_msgs::DetectedObjectArray>("/detection/lidar_detector/objects", 1, &Tracking::trackCallback, this);
-  pub_track_objects_ = nh_.advertise<autoware_msgs::DetectedObjectArray>("/detection/lidar_detector/tracking_objects", 1);
+  pub_track_objects_ = nh_.advertise<autoware_msgs::DetectedObjectArray>("/detection/lidar_detector/tracking_objects_sim", 1);
+  pub_predict_objects_ = nh_.advertise<autoware_msgs::DetectedObjectArray>("/detection/lidar_detector/predict_objects_sim", 1);
 }
 
 void Tracking::trackCallback(const autoware_msgs::DetectedObjectArray::ConstPtr &detect_objects)
@@ -37,8 +42,10 @@ void Tracking::trackCallback(const autoware_msgs::DetectedObjectArray::ConstPtr 
   Eigen::Matrix3d rotation_matrix = base_to_odom.rotation();
   Eigen::Quaterniond base_to_odom_q(rotation_matrix);
 
-  autoware_msgs::DetectedObjectArray pub_objects;
-  pub_objects.header = detect_objects->header;
+  autoware_msgs::DetectedObjectArray pub_track_objects;
+  autoware_msgs::DetectedObjectArray pub_predict_objects;
+  pub_track_objects.header = detect_objects->header;
+  pub_predict_objects.header = detect_objects->header;
 
   for (size_t cls = 0 ; cls < trk_cls_.size(); cls++)
   {
@@ -62,6 +69,7 @@ void Tracking::trackCallback(const autoware_msgs::DetectedObjectArray::ConstPtr 
         Eigen::Quaterniond vec_obj_q(object.pose.orientation.w, object.pose.orientation.x,
                             object.pose.orientation.y, object.pose.orientation.z);
         Eigen::Quaterniond centroid_in_odom_q = base_to_odom_q * vec_obj_q;
+
         // try{
         //     obj_centroid_odom = tfBuffer_.transform(obj_centroid, cloud_track_frame_id_);
         //    }
@@ -83,14 +91,25 @@ void Tracking::trackCallback(const autoware_msgs::DetectedObjectArray::ConstPtr 
         obj.pose.orientation.z = centroid_in_odom_q.vec()[2];
         obj.pose.orientation.w = centroid_in_odom_q.vec()[3];
         obj.header.frame_id = cloud_track_frame_id_;
+        // obj.pose.position.x = vec_obj_centroid(0);
+        // obj.pose.position.y = vec_obj_centroid(1);
+        // obj.pose.position.z = vec_obj_centroid(2);
+        // obj.pose.orientation.x = vec_obj_q.vec()[0];
+        // obj.pose.orientation.y = vec_obj_q.vec()[1];
+        // obj.pose.orientation.z = vec_obj_q.vec()[2];
+        // obj.pose.orientation.w = vec_obj_q.vec()[3];
+        // obj.header.frame_id = cloud_base_frame_id_;
+        
+        // if((obj.pose.position.x < -47) && (obj.pose.position.x > -49) && (obj.pose.position.y > 11))   //debug
         detect_objs.push_back(obj);
       }
     }
 
     std::chrono::time_point<std::chrono::system_clock> t0 = std::chrono::system_clock::now();
     map<long, vector<geometry_msgs::Pose>> tracks;
+    map<long, vector<geometry_msgs::Pose>> predicts;
     map<int, int> assignments_detect_track;
-    ot_->detect(detect_objs, detect_objects->header.stamp.toSec(), cls, tracks,
+    ot_[cls]->detect(detect_objs, detect_objects->header.stamp.toSec(), cls, tracks, predicts,
           assignments_detect_track); // assignment < observation, target >
     LOG(INFO) << "detect_objs.size(): " << detect_objs.size() << ", tracks.size(): " << tracks.size() << ", assignments_detect_track.size(): " << assignments_detect_track.size();
     std::chrono::time_point<std::chrono::system_clock> t1 = std::chrono::system_clock::now();
@@ -108,6 +127,7 @@ void Tracking::trackCallback(const autoware_msgs::DetectedObjectArray::ConstPtr 
 
     std::map<long, autoware_msgs::DetectedObject> detect_track_info;
     
+    // get track objects info
     for (map<long, vector<geometry_msgs::Pose>>::const_iterator it =
           tracks.begin();
         it != tracks.end(); ++it)
@@ -116,6 +136,47 @@ void Tracking::trackCallback(const autoware_msgs::DetectedObjectArray::ConstPtr 
       autoware_msgs::DetectedObject obj;
       obj.header = detect_objects->header;
       obj.header.frame_id = cloud_track_frame_id_;
+      // obj.header.frame_id = cloud_base_frame_id_;
+      obj.valid = true;
+      obj.pose_reliable = true;
+
+      obj.id = it->first;
+      obj.pose.position = it->second[0].position;
+      obj.velocity.linear.x = it->second[1].position.x;
+      obj.velocity.linear.y = it->second[1].position.y;
+      obj.velocity.linear.z = it->second[1].position.z;
+      obj.dimensions= track_info.dimensions;
+      obj.pose.position.z = track_info.pose.position.z;
+      obj.pose.orientation = it->second[0].orientation;
+      obj.score = track_info.score;
+      obj.label = track_info.label;
+
+      if((abs(obj.velocity.linear.x) > velocity_limit_) || (abs(obj.velocity.linear.y) > velocity_limit_)) continue;
+
+      // if((obj.id == 31) || (obj.id == 43))
+      pub_track_objects.objects.push_back(obj);
+      tf::Quaternion q(obj.pose.orientation.x,
+                        obj.pose.orientation.y, 
+                        obj.pose.orientation.z,
+                        obj.pose.orientation.w);
+      double roll, pitch, yaw;
+
+      tf::Matrix3x3(q).getRPY(roll, pitch, yaw);
+      // ROS_INFO("object id %d center %.2f %.2f %.2f rotation %.2f %.2f %.2f %.2f... frame_id:%s", obj.id, obj.pose.position.x, obj.pose.position.y, obj.pose.position.z, obj.pose.orientation.x, obj.pose.orientation.y, obj.pose.orientation.z, obj.pose.orientation.w, obj.header.frame_id.c_str());
+      detect_track_info[it->first] = track_info;
+    }
+    detect_track_info_[cls] = detect_track_info;
+
+    //get predict objects info
+    for (map<long, vector<geometry_msgs::Pose>>::const_iterator it =
+            predicts.begin();
+          it != predicts.end(); ++it)
+    {
+      const autoware_msgs::DetectedObject& track_info = detect_track_info_[cls][it->first];
+      autoware_msgs::DetectedObject obj;
+      obj.header = detect_objects->header;
+      obj.header.frame_id = cloud_track_frame_id_;
+      // obj.header.frame_id = cloud_base_frame_id_;
       obj.valid = true;
       obj.pose_reliable = true;
 
@@ -130,22 +191,26 @@ void Tracking::trackCallback(const autoware_msgs::DetectedObjectArray::ConstPtr 
       obj.pose.orientation = it->second[0].orientation;
       obj.score = track_info.score;
       obj.label = track_info.label;
-      pub_objects.objects.push_back(obj);
-      // tf::Quaternion q(obj.pose.orientation.x,
-      //                   obj.pose.orientation.y, 
-      //                   obj.pose.orientation.z,
-      //                   obj.pose.orientation.w);
-      // double roll, pitch, yaw;
 
-      // tf::Matrix3x3(q).getRPY(roll, pitch, yaw);
-      // ROS_INFO("object id %d center %.2f %.2f %.2f yaw %.2f ... frame_id:%s", obj.id, obj.pose.position.x, obj.pose.position.y, obj.pose.position.z, yaw, obj.header.frame_id.c_str());
+      pub_predict_objects.objects.push_back(obj);
+      tf::Quaternion q(obj.pose.orientation.x,
+                        obj.pose.orientation.y, 
+                        obj.pose.orientation.z,
+                        obj.pose.orientation.w);
+      double roll, pitch, yaw;
+
+      tf::Matrix3x3(q).getRPY(roll, pitch, yaw);
       // ROS_INFO("object id %d center %.2f %.2f %.2f rotation %.2f %.2f %.2f %.2f... frame_id:%s", obj.id, obj.pose.position.x, obj.pose.position.y, obj.pose.position.z, obj.pose.orientation.x, obj.pose.orientation.y, obj.pose.orientation.z, obj.pose.orientation.w, obj.header.frame_id.c_str());
       detect_track_info[it->first] = track_info;
     }
-    detect_track_info_[cls] = detect_track_info;
   }
-  pub_objects.header.frame_id = cloud_track_frame_id_;
-  pub_track_objects_.publish(pub_objects);
+
+  pub_track_objects.header.frame_id = cloud_track_frame_id_;
+  // pub_track_objects.header.frame_id = cloud_base_frame_id_;
+  pub_predict_objects.header.frame_id = cloud_track_frame_id_;
+  // pub_predict_objects.header.frame_id = cloud_base_frame_id_;
+  pub_track_objects_.publish(pub_track_objects);
+  pub_predict_objects_.publish(pub_predict_objects);
 }
 
 bool Tracking::IsObjectValid(const autoware_msgs::DetectedObject &in_object)

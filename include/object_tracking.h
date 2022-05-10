@@ -22,15 +22,16 @@
 class Tracking
 {
 private:
-
+    float velocity_limit_;
     // initializer list
     ros::NodeHandle private_nh_;
     // end initializer list
-    ObjectTracker* ot_;
+    std::vector<ObjectTracker*> ot_;
     std::vector<std::string> trk_cls_;
     ros::NodeHandle nh_;
     ros::Subscriber det_objects_;
     ros::Publisher pub_track_objects_;
+    ros::Publisher pub_predict_objects_;
     std::vector<std::map<long, autoware_msgs::DetectedObject>> detect_track_info_; // x_size, y_size, z_size, yaw
     std::string cloud_track_frame_id_;
     std::string cloud_base_frame_id_;

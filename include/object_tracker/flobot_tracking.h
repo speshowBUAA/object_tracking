@@ -165,7 +165,6 @@ public:
 
     dt = getTime() - time;
     time += dt;
-
     // prediction
     cvm->update(dt);
     cvm3d->update(dt);
@@ -285,6 +284,39 @@ public:
     return result;
   }
 
+  std::map<long, std::vector<geometry_msgs::Pose>> getPredicts(double dt)
+  {
+    boost::mutex::scoped_lock lock(mutex);
+    std::map<long, std::vector<geometry_msgs::Pose>> result;
+
+    // std::cout << "mtrk.size: " << mtrk.size() << std::endl;
+
+    for (int i = 0; i < mtrk.size(); i++)
+    {
+      //std::cout << "id: " << mtrk[i].id << std::endl;
+
+      double theta = atan2(mtrk[i].filter->x[3], mtrk[i].filter->x[1]);
+      geometry_msgs::Pose pose, vel, var; // position, velocity, variance
+
+      pose.position.x = mtrk[i].filter->x[0] + mtrk[i].filter->x[1] * dt;
+      pose.position.y = mtrk[i].filter->x[2] + mtrk[i].filter->x[3] * dt;
+      pose.orientation.z = sin(theta / 2);
+      pose.orientation.w = cos(theta / 2);
+      result[mtrk[i].id].push_back(pose);
+
+      vel.position.x = mtrk[i].filter->x[1];
+      vel.position.y = mtrk[i].filter->x[3];
+      result[mtrk[i].id].push_back(vel);
+
+      var.position.x = mtrk[i].filter->X(0, 0);
+      var.position.y = mtrk[i].filter->X(2, 2);
+      var.orientation.x = mtrk[i].filter->X(0, 2);
+      var.orientation.y = mtrk[i].filter->X(2, 0);
+      result[mtrk[i].id].push_back(var);
+    }
+    return result;
+  }
+
   std::map<long, std::vector<geometry_msgs::Pose>> getTracks3D()
   {
     boost::mutex::scoped_lock lock(mutex);
@@ -300,6 +332,37 @@ public:
 
       pose.position.x = mtrk3d[i].filter->x[0];
       pose.position.y = mtrk3d[i].filter->x[2];
+      pose.orientation = q;
+      result[mtrk3d[i].id].push_back(pose);
+
+      vel.position.x = mtrk3d[i].filter->x[1];
+      vel.position.y = mtrk3d[i].filter->x[3];
+      result[mtrk3d[i].id].push_back(vel);
+
+      var.position.x = mtrk3d[i].filter->X(0, 0);
+      var.position.y = mtrk3d[i].filter->X(2, 2);
+      var.orientation.x = mtrk3d[i].filter->X(0, 2);
+      var.orientation.y = mtrk3d[i].filter->X(2, 0);
+      result[mtrk3d[i].id].push_back(var);
+    }
+    return result;
+  }
+
+  std::map<long, std::vector<geometry_msgs::Pose>> getPredicts3D(double dt)
+  {
+    boost::mutex::scoped_lock lock(mutex);
+    std::map<long, std::vector<geometry_msgs::Pose>> result;
+    // std::cout << "mtrk3d.size: " << mtrk3d.size() << std::endl;
+
+    for (int i = 0; i < mtrk3d.size(); i++)
+    {
+      //std::cout << "id: " << mtrk3d[i].id << std::endl;
+      double yaw = mtrk3d[i].filter->x[4] + mtrk3d[i].filter->x[5] * dt;
+      geometry_msgs::Quaternion q = tf::createQuaternionMsgFromYaw(yaw);
+      geometry_msgs::Pose pose, vel, var; // position, velocity, variance
+
+      pose.position.x = mtrk3d[i].filter->x[0] + mtrk3d[i].filter->x[1] * dt;
+      pose.position.y = mtrk3d[i].filter->x[2] + mtrk3d[i].filter->x[3] * dt;
       pose.orientation = q;
       result[mtrk3d[i].id].push_back(pose);
 
@@ -346,6 +409,44 @@ public:
     }
     return result;
   }
+
+  std::map<long, std::vector<geometry_msgs::Pose>> getPredicts3Dyaw(double dt)
+  {
+    boost::mutex::scoped_lock lock(mutex);
+    std::map<long, std::vector<geometry_msgs::Pose>> result;
+    // std::cout << "mtrk3dyaw.size: " << mtrk3dyaw.size() << std::endl;
+
+    for (int i = 0; i < mtrk3dyaw.size(); i++)
+    {
+      double velocity = sqrt((mtrk3dyaw[i].filter->x[1])*(mtrk3dyaw[i].filter->x[1]) + (mtrk3dyaw[i].filter->x[3])*(mtrk3dyaw[i].filter->x[3]));
+      int sign_x = 1;
+      int sign_y = 1;
+      if (mtrk3dyaw[i].filter->x[1]*cos(mtrk3dyaw[i].filter->x[4]) < 0) sign_x = -1;
+      if (mtrk3dyaw[i].filter->x[3]*sin(mtrk3dyaw[i].filter->x[4]) < 0) sign_y = -1;
+
+      // std::cout << "id: " << mtrk3dyaw[i].id << std::endl;
+      double yaw = mtrk3dyaw[i].filter->x[4] + mtrk3dyaw[i].filter->x[5] * dt;
+      geometry_msgs::Quaternion q = tf::createQuaternionMsgFromYaw(yaw);
+      geometry_msgs::Pose pose, vel, var; // position, velocity, variance
+
+      pose.position.x = mtrk3dyaw[i].filter->x[0] + cos(mtrk3dyaw[i].filter->x[5] * dt) * mtrk3dyaw[i].filter->x[1] * dt - sin(mtrk3dyaw[i].filter->x[5] * dt) * mtrk3dyaw[i].filter->x[3] * dt;
+      pose.position.y = mtrk3dyaw[i].filter->x[2] + sin(mtrk3dyaw[i].filter->x[5] * dt) * mtrk3dyaw[i].filter->x[1] * dt + cos(mtrk3dyaw[i].filter->x[5] * dt) * mtrk3dyaw[i].filter->x[3] * dt;
+      pose.orientation = q;
+      result[mtrk3dyaw[i].id].push_back(pose);
+
+      vel.position.x = velocity * cos(mtrk3dyaw[i].filter->x[4] * dt) * sign_x;
+      vel.position.y = velocity * sin(mtrk3dyaw[i].filter->x[4] * dt) * sign_y;
+      result[mtrk3dyaw[i].id].push_back(vel);
+
+      var.position.x = mtrk3dyaw[i].filter->X(0, 0);
+      var.position.y = mtrk3dyaw[i].filter->X(2, 2);
+      var.orientation.x = mtrk3dyaw[i].filter->X(0, 2);
+      var.orientation.y = mtrk3dyaw[i].filter->X(2, 0);
+      result[mtrk3dyaw[i].id].push_back(var);
+    }
+    return result;
+  }
+
 private:
   FM::Vec* observation; // observation [x, y]
   FM::Vec* observation3d; // observation3d [x, y, yaw]

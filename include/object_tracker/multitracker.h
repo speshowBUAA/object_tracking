@@ -68,15 +68,14 @@ typedef enum
 // to be defined by user
 // rule to detect lost track
 template <class FilterType>
-bool isLost(const FilterType* filter, double stdLimit, int *lost_filter_seq_count, unsigned int seqSize)
+bool isLost(const FilterType* filter, double stdLimit, unsigned int seqSize)
 {
   // ROS_INFO("var_x: %f, var_y: %f",filter->X(0,0), filter->X(2,2));
+  // ROS_INFO("Models::sqr(stdLimit): %f",Models::sqr(stdLimit));
   // track lost if var(x)+var(y) > stdLimit^2
-  // only consider position, ignore yaw
   if (filter->X(0, 0) + filter->X(2, 2)> Models::sqr(stdLimit))
   {
-    if(*lost_filter_seq_count > seqSize) return true;
-    *lost_filter_seq_count += 1;
+    return true;
   }
   return false;
 }
@@ -204,8 +203,9 @@ private:
   int m_filterNum;
   sequence_t m_observations;        // observations
   std::vector<size_t> m_unmatched;  // unmatched observations
+  std::vector<int> m_matched_filters;  // matched filters
   std::map<int, int> m_assignments; // assignment < observation, target >
-  std::map<long, int> m_lost_filter_seq_count; // lost_filter <lost_filter id, seq_count>
+  std::map<int, int> m_lost_filter_seq_count; // lost_filter <lost_filter id, seq_count>
   std::vector<sequence_t>
       m_sequences; // vector of unmatched observation sequences
 
@@ -246,6 +246,7 @@ public:
     // clean current vectors
     m_observations.clear();
     m_assignments.clear();
+    m_matched_filters.clear();
   }
 
   /**
@@ -297,7 +298,6 @@ public:
       observe(om);
     }
     pruneTracks(stdLimit, prune_seqSize);
-    
     if (m_observations.size())
       createTracks(om, om_flag, create_seqSize, seqTime);
     // finished
@@ -336,6 +336,7 @@ private:
   void addFilter(FilterType* filter)
   {
     filter_t f = {(unsigned long)m_filterNum++, filter};
+    // cout << "addFilter id !!!!!!!!!!!!!!!!!!!! : " << m_filterNum << endl;
     m_filters.push_back(f);
   }
 
@@ -343,7 +344,7 @@ private:
   bool dataAssociation(ObservationModelType& om, association_t alg = NN)
   {
     const size_t M = m_observations.size(), N = m_filters.size();
-
+    // cout << "dataAssociation M : " << M << " , N : " << N << endl;
     if (M == 0) // no observation, do nothing
       return false;
 
@@ -374,6 +375,8 @@ private:
         for (int i = 0; i < M; i++)
         {
           s = zp - m_observations[i].vec;
+          if (s.size() == 3) s[2] = 0; // don't use yaw diff in match
+
           om.normalise(s, zp);
 
           try
@@ -458,11 +461,31 @@ private:
     while (fi != fiEnd)
     {
       int *lost_filter_seq_count = &m_lost_filter_seq_count[fi->id];
-      if (isLost(fi->filter, stdLimit, lost_filter_seq_count, seqSize))
+      if(find(m_matched_filters.begin(), m_matched_filters.end(), fi->id) == m_matched_filters.end())
+      {
+        // cout << "id : " << fi->id << " *lost_filter_seq_count : " << *lost_filter_seq_count << endl;
+        if(*lost_filter_seq_count > seqSize)
+        {
+          delete fi->filter;
+          fi = m_filters.erase(fi);
+          fiEnd = m_filters.end();
+          // cout << "delete Filter id ````````````````` : " << fi->id << endl;
+          continue;
+        }
+        else {
+          *lost_filter_seq_count += 1;
+        }
+      }
+      else{
+          *lost_filter_seq_count = 0;
+      }
+      
+      if (isLost(fi->filter, stdLimit, seqSize))
       {
         delete fi->filter;
         fi = m_filters.erase(fi);
         fiEnd = m_filters.end();
+        // cout << "delete Filter id ````````````````` : " << fi->id << endl;
       }
       else
       {
@@ -497,9 +520,17 @@ private:
           // in case of yaw diff pi
           if (m_observations[*ui].vec.size() == 3)
           {
-            if ((m_observations[*ui].vec[2] - si->back().vec[2]) > 1.57)    // exceed pi/2
+            if ((m_observations[*ui].vec[2] - si->back().vec[2]) > 4.71)    // exceed 3pi/2
+            {
+              m_observations[*ui].vec[2] -= 3.1415926 * 2;  // ± 2pi correction
+            }
+            else if ((m_observations[*ui].vec[2] - si->back().vec[2]) > 1.57)    // exceed pi/2
             {
               m_observations[*ui].vec[2] -= 3.1415926;  // ± pi correction
+            }
+            else if ((m_observations[*ui].vec[2] - si->back().vec[2]) < -4.71)
+            {
+              m_observations[*ui].vec[2] += 3.1415926 * 2; // ± 2pi correction
             }
             else if ((m_observations[*ui].vec[2] - si->back().vec[2]) < -1.57)
             {
@@ -514,6 +545,7 @@ private:
           { // there's a minimum number of sequential observations
             addFilter(filter);
             m_assignments.insert(std::pair<int, int>(*ui, m_filterNum-1));
+            m_lost_filter_seq_count.insert(std::pair<int, int>(m_filterNum-1, 0));
             // remove sequence
             si = m_sequences.erase(si);
             matched = true;
@@ -559,16 +591,26 @@ private:
   {
     typename std::map<int, int>::iterator ai, aiEnd = m_assignments.end();
     for (ai = m_assignments.begin(); ai != aiEnd; ai++)
-    { 
+    {
+      // cout << "m_observations id: " <<  ai->first << endl;
+      // cout << "m_filters id: " <<  m_filters[ai->second].id << endl;
       // cout << "Vec first:" << Vec(m_observations[ai->first].vec) << endl;
       // cout << "Vec second:" << m_filters[ai->second].filter->x[0] << " " << m_filters[ai->second].filter->x[2] << " " << m_filters[ai->second].filter->x[4] << endl;
-      
+      m_matched_filters.push_back(m_filters[ai->second].id);
       // in case of yaw diff pi
       if (m_observations[ai->first].vec.size() == 3)
       {
-        if ((m_observations[ai->first].vec[2] - m_filters[ai->second].filter->x[4]) > 1.57)    // exceed pi/2
+        if ((m_observations[ai->first].vec[2] - m_filters[ai->second].filter->x[4]) > 4.71)    // exceed 3*pi/2
+        {
+          m_observations[ai->first].vec[2] -= 3.1415926*2;  // ± 2pi correction
+        }
+        else if ((m_observations[ai->first].vec[2] - m_filters[ai->second].filter->x[4]) > 1.57)    // exceed pi/2
         {
           m_observations[ai->first].vec[2] -= 3.1415926;  // ± pi correction
+        }
+        else if ((m_observations[ai->first].vec[2] - m_filters[ai->second].filter->x[4]) < -4.71)
+        {
+          m_observations[ai->first].vec[2] += 3.1415926*2; // ± 2pi correction
         }
         else if ((m_observations[ai->first].vec[2] - m_filters[ai->second].filter->x[4]) < -1.57)
         {
